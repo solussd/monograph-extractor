@@ -43,11 +43,15 @@
                (throw (ex-info "Login failed" {:resp (subs resp 0 (min 500 (count resp)))}))))))
 
 (defn query! [payload]
-  (-> (curl! "-X" "POST"
-             "-H" "Content-Type: application/json"
-             "-d" (json/generate-string payload)
-             (str base-url "/graphql"))
-      (json/parse-string true)))
+  (let [raw (curl! "-X" "POST"
+                   "-H" "Content-Type: application/json"
+                   "--data-raw" (json/generate-string payload)
+                   (str base-url "/graphql"))
+        parsed (json/parse-string raw true)]
+    (println "DEBUG response keys:" (keys (:data parsed)))
+    (when (:errors parsed)
+      (println "ERRORS:" (:errors parsed)))
+    parsed))
 
 ;; ---------------------------------------------------------------------------
 ;; CSV helpers
