@@ -35,7 +35,7 @@
     (if (and (str/includes? resp "<!DOCTYPE html>")
              (not (str/includes? resp "Log in to Monograph")))
       (println "✓ Login successful")
-      (throw (ex-info "Login failed" {})))))
+      (throw (ex-info "Login failed" {:resp resp})))))
 
 (defn query! [payload]
   (-> (curl! "-X" "POST"
