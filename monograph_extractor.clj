@@ -18,29 +18,29 @@
         (:out @result)))
 
 (defn login! [email password]
-      (when (fs/exists? cookie-jar) (fs/delete cookie-jar))
-      (let [page (curl! (str base-url "/login"))
-            csrf (second (re-find #"name=\"authenticity_token\"\s+value=\"([^\"]+)\"" page))
-            _ (when-not csrf (throw (ex-info "No CSRF token" {})))
+      (when (fs/exists? cookie-jar) (fs/delete cookie-jar)
+        (let [page (curl! (str base-url "/login"))
+              csrf (second (re-find #"name=\"authenticity_token\"\s+value=\"([^\"]+)\"" page))
+              _ (when-not csrf (throw (ex-info "No CSRF token" {})))
 
-            body (str "authenticity_token=" (java.net.URLEncoder/encode csrf "UTF-8")
-                      "&user%5Bemail%5D=" (java.net.URLEncoder/encode email "UTF-8")
-                      "&user%5Bpassword%5D=" (java.net.URLEncoder/encode password "UTF-8")
-                      "&user%5Bremember_me%5D=0"
-                      "&user%5Bremember_me%5D=1"
-                      "&commit=Log+in+with+password")
+              body (str "authenticity_token=" (java.net.URLEncoder/encode csrf "UTF-8")
+                        "&user%5Bemail%5D=" (java.net.URLEncoder/encode email "UTF-8")
+                        "&user%5Bpassword%5D=" (java.net.URLEncoder/encode password "UTF-8")
+                        "&user%5Bremember_me%5D=0"
+                        "&user%5Bremember_me%5D=1"
+                        "&commit=Log+in+with+password")
 
-            resp (curl! "-D" "-" "-X" "POST"
-                        "-H" "Content-Type: application/x-www-form-urlencoded"
-                        "-H" (str "Origin: " base-url)
-                        "-H" (str "Referer: " base-url "/login")
-                        "--data-raw" body
-                        "-L" (str base-url "/login"))]
+              resp (curl! "-D" "-" "-X" "POST"
+                          "-H" "Content-Type: application/x-www-form-urlencoded"
+                          "-H" (str "Origin: " base-url)
+                          "-H" (str "Referer: " base-url "/login")
+                          "--data-raw" body
+                          "-L" (str base-url "/login"))]
 
-           (if (and (str/includes? resp "<!DOCTYPE html>")
-                    (not (str/includes? resp "Log in to Monograph"))))
-           (println "✓ Login successful")
-           (throw (ex-info "Login failed" {:resp (subs resp 0 (min 500 (count resp)))}))))
+             (if (and (str/includes? resp "<!DOCTYPE html>")
+                      (not (str/includes? resp "Log in to Monograph"))))
+             (println "✓ Login successful")
+             (throw (ex-info "Login failed" {:resp (subs resp 0 (min 500 (count resp)))})))))
 
 (defn query! [payload]
   (-> (curl! "-X" "POST"
