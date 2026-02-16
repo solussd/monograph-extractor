@@ -38,9 +38,9 @@
                           "-L" (str base-url "/login"))]
 
              (if (and (str/includes? resp "<!DOCTYPE html>")
-                      (not (str/includes? resp "Log in to Monograph"))))
-             (println "✓ Login successful")
-             (throw (ex-info "Login failed" {:resp (subs resp 0 (min 500 (count resp)))})))))
+                      (not (str/includes? resp "Log in to Monograph")))
+               (println "✓ Login successful")
+               (throw (ex-info "Login failed" {:resp (subs resp 0 (min 500 (count resp)))}))))))
 
 (defn query! [payload]
   (-> (curl! "-X" "POST"
