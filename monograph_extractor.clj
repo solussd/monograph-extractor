@@ -6,7 +6,11 @@
          '[babashka.fs :as fs])
 
 (def base-url "https://app.monograph.com")
-(def cookie-jar "/tmp/monograph-cookies.txt")
+
+(def cookie-jar
+  (str (System/getProperty "user.dir")
+       (System/getProperty "file.separator")
+       "monograph-cookies.txt"))
 
 ;; ---------------------------------------------------------------------------
 ;; HTTP / Auth
@@ -20,38 +24,41 @@
 (defn login! [email password]
   (when (fs/exists? cookie-jar) (fs/delete cookie-jar))
 
-  ;; 1. GET /login — grab CSRF + initial session cookie
   (let [page (curl! (str base-url "/login"))
         csrf (second (re-find #"name=\"authenticity_token\"\s+value=\"([^\"]+)\"" page))
         _    (when-not csrf (throw (ex-info "No CSRF token" {})))
 
-        body (str "authenticity_token=" (java.net.URLEncoder/encode csrf "UTF-8")
-                  "&user%5Bemail%5D=" (java.net.URLEncoder/encode email "UTF-8")
-                  "&user%5Bpassword%5D=" (java.net.URLEncoder/encode password "UTF-8")
-                  "&user%5Bremember_me%5D=0"
-                  "&user%5Bremember_me%5D=1"
-                  "&commit=Log+in+with+password")
+        ;; Write body to file to avoid any encoding issues
+        body-file (str (System/getProperty "user.dir")
+                       (System/getProperty "file.separator")
+                       "monograph-login-body.tmp")
+        body      (str "authenticity_token=" (java.net.URLEncoder/encode csrf "UTF-8")
+                       "&user%5Bemail%5D=" (java.net.URLEncoder/encode email "UTF-8")
+                       "&user%5Bpassword%5D=" (java.net.URLEncoder/encode password "UTF-8")
+                       "&user%5Bremember_me%5D=0"
+                       "&user%5Bremember_me%5D=1"
+                       "&commit=Log+in+with+password")
+        _         (spit body-file body)
 
-        ;; 2. POST /login — don't follow redirect, don't dump headers
-        resp (curl! "-o" "NUL"        ;; discard body (use /dev/null on mac)
-                    "-w" "%{http_code}"
-                    "-X" "POST"
-                    "-H" "Content-Type: application/x-www-form-urlencoded"
-                    "-H" (str "Origin: " base-url)
-                    "-H" (str "Referer: " base-url "/login")
-                    "--data-raw" body
-                    (str base-url "/login"))
+        ;; POST with body from file
+        resp      (curl! "-w" "\n%{http_code}"
+                         "-X" "POST"
+                         "-H" "Content-Type: application/x-www-form-urlencoded"
+                         "-H" (str "Origin: " base-url)
+                         "-H" (str "Referer: " base-url "/login")
+                         "-d" (str "@" body-file)
+                         "-L" (str base-url "/login"))
 
-        ;; 3. Follow up with a GET to establish the full session
-        _ (curl! (str base-url "/"))]
+        _         (when (fs/exists? body-file) (fs/delete body-file))
+        lines     (str/split-lines resp)
+        status    (str/trim (last lines))]
 
-    (println "Login status:" (str/trim resp))
-    (println "Cookie jar:")
-    (println (slurp cookie-jar))
+    (println "Login status:" status)
 
-    (if (str/starts-with? (str/trim resp) "3")
+    (if (and (str/includes? resp "<!DOCTYPE html>")
+             (not (str/includes? resp "Log in to Monograph")))
       (println "✓ Login successful")
-      (throw (ex-info "Login failed" {:status resp})))))
+      (throw (ex-info "Login failed" {:status status})))))
 
 (defn query! [payload]
   (let [raw (curl! "-X" "POST"
